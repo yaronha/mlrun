@@ -666,6 +666,17 @@ def list_functions():
     )
 
 
+@app.route('/api/webhook/github', methods=['POST'])
+@catch_err
+def github_webhook():
+    signature = request.headers.get('X-Hub-Signature')
+    data = request.data
+    print('sig:', signature)
+    print('headers:', request.headers)
+    print('data:', data)
+    print('json:', request.get_json())
+
+
 @app.route('/api/healthz', methods=['GET'])
 def health():
     return 'OK\n'
