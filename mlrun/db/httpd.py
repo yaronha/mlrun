@@ -676,6 +676,10 @@ def github_webhook():
     print('data:', data)
     print('json:', request.get_json())
 
+    if request.headers.get('X-GitHub-Event') == "ping":
+        return jsonify({'msg': 'Ok'})
+
+    return jsonify({'msg': 'pushed'})
 
 @app.route('/api/healthz', methods=['GET'])
 def health():
