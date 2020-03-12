@@ -30,6 +30,7 @@ from ..config import config
 from ..lists import ArtifactList, FunctionList, RunList
 from ..utils import get_in, update_in
 from .base import RunDBError, RunDBInterface
+from ..auth import PermissionStore, Permission
 
 Base = declarative_base()
 NULL = None  # Avoid flake8 issuing warnings when comparing in filter
@@ -183,6 +184,18 @@ with warnings.catch_warnings():
         @spec.setter
         def spec(self, value):
             self._spec = pickle.dumps(value)
+
+    class Permissions(Base):
+        __tablename__ = 'permissions'
+        __table_args__ = (
+            UniqueConstraint(
+                'project', 'user', name='permissions_uc'),
+        )
+
+        id = Column(Integer, primary_key=True)
+        project = Column(String, ForeignKey('projects.name'))
+        user = Column(String, ForeignKey('users.name'))
+        mask = Column(Integer)
 
 
 # Must be after all table definitions
@@ -516,6 +529,23 @@ class SQLDB(RunDBInterface):
 
     def list_projects(self, owner=None):
         return self._query(Project, owner=owner)
+
+    def load_permissions(self):
+        store = PermissionStore()
+        for perm in self._query(Permissions):
+            mask = Permission(perm.mask)  # raise on error
+            store.set(perm.project, perm.user, mask)
+        return store
+
+    def set_permissions(self, project, user, mask):
+        mask = Permission(mask)  # assert valid
+        perm = self._query(Permission).filter(
+            Permission.project == project,
+            Permission.user == user).one_or_none()
+        if not perm:
+            perm = Permission(project=project, user=user)
+        perm.mask = mask
+        self._upsert(perm)
 
     def _resolve_tag(self, cls, project, name):
         for tag in self._query(cls.Tag, project=project, name=name):

@@ -41,6 +41,7 @@ from mlrun.run import import_function, new_function
 from mlrun.runtimes import runtime_resources_map
 from mlrun.scheduler import Scheduler
 from mlrun.utils import get_in, logger, now_date, parse_function_uri, update_in
+from mlrun.auth import Permission, PermissionStore
 
 
 class CustomJSONEncoder(JSONEncoder):
@@ -60,6 +61,7 @@ _scheduler: Scheduler = None
 _db: RunDBInterface = None
 _k8s: K8sHelper = None
 _logs_dir = None
+_perm_store = PermissionStore()
 app = Flask(__name__)
 app.json_encoder = CustomJSONEncoder
 basic_prefix = 'Basic '
@@ -96,6 +98,13 @@ def bearer_auth_required(cfg):
     return cfg.token
 
 
+@app.errorhandler(AuthError)
+def handle_auth_error(err):
+    resp = jsonify(ok=False, error=str(err))
+    resp.status_code = HTTPStatus.UNAUTHORIZED
+    return resp
+
+
 @app.before_request
 def check_auth():
     if request.path == '/api/healthz':
@@ -104,23 +113,18 @@ def check_auth():
     cfg = config.httpdb
 
     header = request.headers.get('Authorization', '')
-    try:
-        if basic_auth_required(cfg):
-            if not header.startswith(basic_prefix):
-                raise AuthError('missing basic auth')
-            user, passwd = parse_basic_auth(header)
-            if user != cfg.user or passwd != cfg.password:
-                raise AuthError('bad basic auth')
-        elif bearer_auth_required(cfg):
-            if not header.startswith(bearer_prefix):
-                raise AuthError('missing bearer auth')
-            token = header[len(bearer_prefix):]
-            if token != cfg.token:
-                raise AuthError('bad bearer auth')
-    except AuthError as err:
-        resp = jsonify(ok=False, error=str(err))
-        resp.status_code = HTTPStatus.UNAUTHORIZED
-        return resp
+    if basic_auth_required(cfg):
+        if not header.startswith(basic_prefix):
+            raise AuthError('missing basic auth')
+        user, passwd = parse_basic_auth(header)
+        if user != cfg.user or passwd != cfg.password:
+            raise AuthError('bad basic auth')
+    elif bearer_auth_required(cfg):
+        if not header.startswith(bearer_prefix):
+            raise AuthError('missing bearer auth')
+        token = header[len(bearer_prefix):]
+        if token != cfg.token:
+            raise AuthError('bad bearer auth')
 
 
 def catch_err(fn):
@@ -133,6 +137,16 @@ def catch_err(fn):
                 HTTPStatus.INTERNAL_SERVER_ERROR, ok=False, reason=str(err))
 
     return wrapper
+
+
+def assert_perms(project, mask):
+    user = request.headers.get('X-User')
+    if user is None:
+        raise AuthError('no user')
+
+    if not _perm_store.match(project, user, mask):
+        raise AuthError(f'{project}:{user} missing {mask}')
+
 
 # curl -d@/path/to/job.json http://localhost:8080/submit
 @app.route('/api/submit', methods=['POST'])
@@ -896,6 +910,30 @@ def get_tagged(project, name):
         project=project,
         tag=name,
         objects=[db2dict(obj) for obj in objs],
+    )
+
+
+@app.route('/api/<project>/permission/<user>', methods=['POST'])
+def set_permission(project, user):
+    try:
+        data: list = request.get_json(force=True)
+    except ValueError:
+        return json_error(HTTPStatus.BAD_REQUEST, reason='bad JSON body')
+
+    mask = Permission(0)
+    for val in data:
+        perm = getattr(Permission, val.upper(), None)
+        if perm is None:
+            reason = f'unknown permission - {perm}'
+            return json_error(HTTPStatus.BAD_REQUEST, reason=reason)
+        mask |= perm
+    _db.set_permission(project, user, mask)
+    _perm_store.set(project, user, mask)
+    return jsonify(
+        ok=True,
+        project=project,
+        user=user,
+        permissions=data,
     )
 
 
