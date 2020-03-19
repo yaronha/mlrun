@@ -4,7 +4,7 @@ from uuid import uuid4
 import pytest
 
 from mlrun.db import httpd
-from mlrun.run import new_function
+from mlrun.artifacts import Artifact
 
 
 @pytest.fixture
@@ -74,23 +74,25 @@ def test_list_schedules(client):
 
 def test_tag(client):
     prj = 'prj7'
-    fn_name = 'fn_{}'.format
+    art_key = 'art_{}'.format
     for i in range(7):
-        name = fn_name(i)
-        fn = new_function(name=name, project=prj).to_dict()
-        resp = client.post(f'/api/func/{prj}/{name}', json=fn)
+        key = art_key(i)
+        art = Artifact(key=key, body=str(i)).to_dict()
+        uid = f'uid{i}'
+        resp = client.post(f'/api/artifact/{prj}/{uid}/{key}', json=art)
         assert resp.status_code == HTTPStatus.OK, 'status create'
+
     tag = 't1'
-    tagged = {fn_name(i) for i in (1, 3, 4)}
-    for name in tagged:
-        query = {'functions': {'name': name}}
+    tagged = {art_key(i) for i in (1, 3, 4)}
+    for key in tagged:
+        query = {'artifacts': {'key': key}}
         resp = client.post(f'/api/{prj}/tag/{tag}', json=query)
         assert resp.status_code == HTTPStatus.OK, 'status tag'
 
     resp = client.get(f'/api/{prj}/tag/{tag}')
     assert resp.status_code == HTTPStatus.OK, 'status get tag'
     objs = resp.json['objects']
-    assert {obj['name'] for obj in objs} == tagged, 'tagged'
+    assert {obj['key'] for obj in objs} == tagged, 'tagged'
 
     resp = client.delete(f'/api/{prj}/tag/{tag}')
     assert resp.status_code == HTTPStatus.OK, 'delete'
