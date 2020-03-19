@@ -15,7 +15,6 @@
 import pickle
 import warnings
 from datetime import datetime, timedelta, timezone
-from uuid import uuid4
 
 from dateutil import parser
 from sqlalchemy import (
@@ -101,12 +100,11 @@ with warnings.catch_warnings():
         )
 
         Label = make_label(__tablename__)
-        Tag = make_tag(__tablename__)
 
         id = Column(Integer, primary_key=True)
         name = Column(String)
         project = Column(String)
-        uid = Column(String)
+        uid = Column(String)  # Also called "tag"
         body = Column(BLOB)
         labels = relationship(Label)
 
@@ -387,8 +385,8 @@ class SQLDB(RunDBInterface):
     def store_function(self, func, name, project='', tag=''):
         project = project or config.default_project
         self._create_project_if_not_exists(project)
-        uid = tag or uuid4().hex
         update_in(func, 'metadata.updated', datetime.now(timezone.utc))
+        uid = tag or 'latest'
         fn = self._get_function(name, project, uid)
         if not fn:
             fn = Function(
@@ -403,13 +401,10 @@ class SQLDB(RunDBInterface):
 
     def get_function(self, name, project='', tag=''):
         project = project or config.default_project
-        query = self._query(Function, name=name, project=project)
-        if tag:
-            uid = self._resolve_tag(Function, project, tag)
-            query = query.filter(Function.Tag.uid == uid)
-        obj = query.one_or_none()
-        if obj:
-            return obj.struct
+        tag = tag or 'latest'
+        func = self._get_function(name, project, tag)
+        if func:
+            return func.struct
 
     def list_functions(
             self, name, project=None, tag=None, labels=None):
@@ -546,8 +541,7 @@ class SQLDB(RunDBInterface):
         return users
 
     def _get_function(self, name, project, tag):
-        uid = self._resolve_tag(Function, project, tag)
-        query = self._query(Function, name=name, project=project, uid=uid)
+        query = self._query(Function, name=name, project=project, uid=tag)
         return query.one_or_none()
 
     def _get_artifact(self, uid, project, key):
