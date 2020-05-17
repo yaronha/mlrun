@@ -149,10 +149,7 @@ RUN python -c "from matplotlib.font_manager import _rebuild; _rebuild();"
 
 RUN conda clean -aqy
 
-RUN git clone https://github.com/${REPO}/mlrun.git /mlrun-git && \
-    cd /mlrun-git && \
-    git checkout ${MLRUN_TAG} && \
-    python -m pip install -e .
+RUN python -m pip install git+https://github.com/${REPO}/mlrun.git@${MLRUN_TAG}
 
 RUN python -m pip install --ignore-installed --no-cache-dir \
     blosc==1.7.0 \
