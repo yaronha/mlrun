@@ -167,7 +167,7 @@ def run(url, param, inputs, outputs, in_path, out_path, secrets, uid,
     set_item(runobj.spec, outputs, run_keys.outputs, list(outputs))
     set_item(runobj.spec, secrets, run_keys.secrets, line2keylist(secrets, 'kind', 'source'))
 
-    if kfp:
+    if kfp or runobj.spec.verbose:
         print('MLRun version: {}'.format(get_version()))
         print('Runtime:')
         pprint(runtime)
