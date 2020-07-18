@@ -24,6 +24,7 @@ from .filestore import FileStore
 from .v3io import V3ioStore
 from .azure_blob import AzureBlobStore
 from .inmem import InMemoryStore
+from .dask import DaskStore
 
 in_memory_store = InMemoryStore()
 
@@ -45,6 +46,8 @@ def parseurl(url):
 def schema_to_store(schema):
     if not schema or schema in ['file', 'c', 'd']:
         return FileStore
+    elif schema == 'dask':
+        return DaskStore
     elif schema == 's3':
         return S3Store
     elif schema == 'az':

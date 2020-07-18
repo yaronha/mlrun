@@ -71,9 +71,7 @@ class TableArtifact(Artifact):
         if not self._is_df:
             return self._body
         csv_buffer = StringIO()
-        self._body.to_csv(
-            csv_buffer, line_terminator='\n', encoding='utf-8'
-        )
+        self._body.to_csv(csv_buffer, line_terminator='\n', encoding='utf-8')
         return csv_buffer.getvalue()
 
 
@@ -153,7 +151,9 @@ class DatasetArtifact(Artifact):
         if self._df is None:
             return
 
-        if self.target_path.startswith('memory://'):
+        if self.target_path.startswith('memory://') or self.target_path.startswith(
+            'dask://'
+        ):
             data_stores.object(self.target_path).put(self._df)
             return
 
