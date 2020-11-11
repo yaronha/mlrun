@@ -21,7 +21,7 @@ from mlrun.serving.states import ServingTaskState
 
 
 def run_ingestion_pipeline(
-    client, featureset, source, targets=None, namespace=[], return_df=True
+        client, featureset, source, targets=None, namespace=[], return_df=True
 ):
     if not targets:
         raise ValueError("ingestion target(s) were not specified")
@@ -44,8 +44,6 @@ def run_ingestion_pipeline(
     )
     controller = flow.run()
     df = controller.await_termination()
-    if featureset.spec.timestamp_key:
-        df.sort_values(featureset.spec.timestamp_key, inplace=True)
     if TargetTypes.parquet in targets:
         target_path = client._get_target_path(TargetTypes.parquet, featureset)
         target_path = upload_file(client, df, target_path, featureset)
@@ -81,9 +79,8 @@ class UpdateState:
 
 
 def create_ingest_pipeline(
-    client, featureset, source, targets=None, namespace=[], return_df=True
+        client, featureset, source, targets=None, namespace=[], return_df=True
 ):
-
     targets = targets or []
     if TargetTypes.nosql in targets:
         target_path = client._get_target_path(TargetTypes.nosql, featureset, "/")
@@ -132,9 +129,11 @@ def create_ingest_pipeline(
 
     if len(target_states) == 0:
         raise ValueError("must have at least one target or output df")
-    if len(target_states) == 1:
-        target_states = target_states[0]
-    steps.append(target_states)
+
+    # Run each target state on a separate branch of the flow
+    for target_state in target_states:
+        steps.append([target_state])
+
     return build_flow(steps)
 
 
