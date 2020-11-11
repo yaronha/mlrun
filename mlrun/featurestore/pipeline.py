@@ -21,7 +21,7 @@ from mlrun.serving.states import ServingTaskState
 
 
 def run_ingestion_pipeline(
-        client, featureset, source, targets=None, namespace=[], return_df=True
+    client, featureset, source, targets=None, namespace=[], return_df=True
 ):
     if not targets:
         raise ValueError("ingestion target(s) were not specified")
@@ -79,8 +79,9 @@ class UpdateState:
 
 
 def create_ingest_pipeline(
-        client, featureset, source, targets=None, namespace=[], return_df=True
+    client, featureset, source, targets=None, namespace=[], return_df=True
 ):
+
     targets = targets or []
     if TargetTypes.nosql in targets:
         target_path = client._get_target_path(TargetTypes.nosql, featureset, "/")
